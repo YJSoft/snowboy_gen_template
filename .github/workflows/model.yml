@@ -1,0 +1,39 @@
+name: Create Snowboy Model
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  create-model:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-16.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Install apt dependency for model build
+        run: sudo add-apt-repository ppa:jonathonf/ffmpeg-4 -y && sudo apt-get update && sudo apt-get --yes --force-yes install wget unzip build-essential python python-dev virtualenv portaudio19-dev ffmpeg
+
+      - name: Download snowboy model
+        run: wget https://github.com/seasalt-ai/snowboy/archive/master.zip && unzip master.zip
+      
+      - name: Install python dependency for model build
+        run: cd snowboy-master/ && virtualenv -p python2 venv/snowboy && . venv/snowboy/bin/activate && cd examples/Python && pip install -r requirements.txt
+
+      - name: Convert models file for model create
+        run: mkdir models && cd source/ && ffmpeg -i record1.wav -ar 16000 -ac 1 -y ../models/record1.wav && ffmpeg -i record2.wav -ar 16000 -ac 1 -y ../models/record2.wav && ffmpeg -i record3.wav -ar 16000 -ac 1 -y ../models/record3.wav && rm -rf source
+
+      - name: Generate model based on wav
+        run: cp -R models snowboy-master/ && cd snowboy-master/ && . venv/snowboy/bin/activate && mkdir pmdl && python examples/Python/generate_pmdl.py -r1=models/record1.wav -r2=models/record2.wav -r3=models/record3.wav -lang=en -n=pmdl/hotword.pmdl
+      
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v2.2.1
+        with:
+          # Artifact name
+          name: "pmdl"
+          path: ./snowboy-master/pmdl/
+          if-no-files-found: error
